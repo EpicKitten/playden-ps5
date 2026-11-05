@@ -199,6 +199,12 @@ int main(int argc, char** argv) {
   CHECK(!CheckProsperoProfile(base + "[input]\nwheel = left_stick\n", &reason, {.input_tuning = true}));
   CHECK(CheckProsperoProfile(base + "[input]\nwheel = left_stick\n", &reason, {.input_wheel = true}));
   CHECK(!CheckProsperoProfile(base + "[input]\nwheel = dpad\n", &reason, {.input_wheel = true}));
+  // [input] keys needs an input-stick-keys runtime.
+  CHECK(!CheckProsperoProfile(base + "[input]\nkeys = left_stick\n", &reason));
+  CHECK(!CheckProsperoProfile(base + "[input]\nkeys = left_stick\n", &reason, {.input_wheel = true}));
+  for (const char* stick : {"none", "left_stick", "right_stick"})
+    CHECK(CheckProsperoProfile(base + "[input]\nkeys = " + stick + "\n", &reason, {.input_stick_keys = true}));
+  CHECK(!CheckProsperoProfile(base + "[input]\nkeys = wasd\n", &reason, {.input_stick_keys = true}));
   CHECK(!CheckProsperoProfile(base + "[audio]\nvolume = 50\n", &reason));
   CHECK(CheckProsperoProfile(base + "[audio]\nvolume = 0\n", &reason, {.audio_section = true}));
   CHECK(!CheckProsperoProfile(base + "[audio]\nvolume = 101\n", &reason, {.audio_section = true}));

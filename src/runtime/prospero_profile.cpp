@@ -353,6 +353,8 @@ bool CheckProsperoProfile(std::string_view text, std::string* reason, ProsperoPr
         if (speed < 1 || speed > 20000) return bad("not 1-20000");
       } else if (features.input_wheel && key == "wheel") {
         if (!OneOf(value, {"none", "left_stick", "right_stick"})) return bad("unknown wheel stick");
+      } else if (features.input_stick_keys && key == "keys") {
+        if (!OneOf(value, {"none", "left_stick", "right_stick"})) return bad("unknown movement stick");
       } else if ((features.input_tuning && (key == "stick_deadzone" || key == "trigger_deadzone")) ||
                  ((features.input_tuning || features.input_rumble) && key == "rumble")) {
         const long maximum = key == "rumble" ? 100 : 50;

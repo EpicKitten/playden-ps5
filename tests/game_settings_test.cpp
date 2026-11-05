@@ -79,7 +79,7 @@ int main(int argc, char** argv) {
         "resolution", "refresh", "frame_limit", "framegen", "vsync", "performance_overlay", "overlay_detail", "scaling",
         "window_view",
         "controller", "controller_preset",
-        "pointer_stick", "pointer_speed", "stick_deadzone", "rumble", "invert_stick", "trigger_deadzone", "wheel_stick",
+        "pointer_stick", "pointer_speed", "movement_stick", "stick_deadzone", "rumble", "invert_stick", "trigger_deadzone", "wheel_stick",
         "volume",
         "start_check",
         "graphics", "d3d12", "pixel_shader_waves", "frame_latency", "reported_gpu", "reported_vram",
@@ -957,6 +957,56 @@ int main(int argc, char** argv) {
     CHECK(profile.text.find("rumble") == std::string::npos);
     CHECK(BuildEffectiveSettings(hl2, nullptr, {{"controller", "keyboard"}, {"rumble", "0"}}, rumble_kit, &settings, &error));
     CHECK(settings.values.at("rumble").reason == "Only with a controller.");
+  }
+  // Movement stick (input-stick-keys): a stick holds W, A, S and D. Only with Keyboard and mouse mapping, written only
+  // when a stick is chosen, and waiting for the title's update on an older runtime.
+  {
+    const auto keys_kit = KitCapabilitiesFromManifest({kKitInputStickKeys}, false);
+    CHECK(keys_kit.input_stick_keys && !KitCapabilitiesFromManifest({kKitInputRumble}, false).input_stick_keys);
+    CHECK(FindSetting("movement_stick")->group == SettingGroup::kControllerTuning);
+    CHECK(ValidateSettingValue(hl2, "movement_stick", "left_stick", &reason));
+    CHECK(!ValidateSettingValue(hl2, "movement_stick", "dpad", &reason));
+    const std::map<std::string, std::string> chosen = {
+        {"controller", "keyboard"}, {"movement_stick", "left_stick"}, {"pointer_stick", "right_stick"}};
+    CHECK(BuildEffectiveSettings(hl2, nullptr, chosen, keys_kit, &settings, &error));
+    CHECK(settings.values.at("movement_stick").available && Value(settings, "movement_stick") == "left_stick");
+    CHECK(RenderProsperoProfile(hl2, settings, target, &profile, &reason));
+    CHECK(profile.text.find("\nmode = keyboard\nmouse = right_stick\n") != std::string::npos);
+    CHECK(profile.text.find("\nkeys = left_stick\n") != std::string::npos);
+    CHECK(!CheckProsperoProfile(profile.text, &reason));  // an older runtime refuses the key
+    CHECK(CheckProsperoProfile(profile.text, &reason, {.input_stick_keys = true}));
+    // None writes nothing, so the profile stays readable by every runtime.
+    CHECK(BuildEffectiveSettings(hl2, nullptr, {{"controller", "keyboard"}, {"movement_stick", "none"}}, keys_kit,
+                                 &settings, &error));
+    CHECK(RenderProsperoProfile(hl2, settings, target, &profile, &reason));
+    CHECK(profile.text.find("keys") == std::string::npos && CheckProsperoProfile(profile.text, &reason));
+    // A controller mode: the game reads the stick itself, so the row is unavailable and nothing is written.
+    CHECK(BuildEffectiveSettings(hl2, nullptr, {{"movement_stick", "left_stick"}}, keys_kit, &settings, &error));
+    CHECK(Value(settings, "controller") == "xinput" && !settings.values.at("movement_stick").available);
+    CHECK(settings.values.at("movement_stick").reason == "Only with Keyboard and mouse mapping.");
+    CHECK(RenderProsperoProfile(hl2, settings, target, &profile, &reason));
+    CHECK(profile.text.find("keys") == std::string::npos);
+    // Without the capability.
+    CHECK(BuildEffectiveSettings(hl2, nullptr, chosen, KitCapabilities{}, &settings, &error));
+    CHECK(!settings.values.at("movement_stick").available &&
+          settings.values.at("movement_stick").reason == "Needs a runtime kit that holds W, A, S and D from a stick.");
+    CHECK(RenderProsperoProfile(hl2, settings, target, &profile, &reason));
+    CHECK(profile.text.find("keys") == std::string::npos && CheckProsperoProfile(profile.text, &reason));
+    // A title on an older runtime keeps the choice for its update.
+    const auto stale = KitForTitleRuntime(keys_kit, false);
+    CHECK(!stale.input_stick_keys && stale.input_stick_keys_needs_update);
+    CHECK(KitForTitleRuntime(keys_kit, true).input_stick_keys);
+    CHECK(!KitForTitleRuntime(KitCapabilities{}, false).input_stick_keys_needs_update);
+    CHECK(BuildEffectiveSettings(hl2, nullptr, chosen, stale, &settings, &error));
+    const auto& waiting = settings.values.at("movement_stick");
+    CHECK(!waiting.available && waiting.waits_for_update && waiting.after_update == "left_stick");
+    CHECK(RenderProsperoProfile(hl2, settings, target, &profile, &reason));
+    CHECK(profile.text.find("keys") == std::string::npos && CheckProsperoProfile(profile.text, &reason));
+    // A community preset that needs it is shown with the capability, or while the title waits for it.
+    CommunityPreset needs_keys;
+    needs_keys.requires_prospero_win.push_back("input-stick-keys");
+    CHECK(CommunityPresetSupported(needs_keys, keys_kit) && CommunityPresetSupported(needs_keys, stale));
+    CHECK(!CommunityPresetSupported(needs_keys, KitCapabilities{}));
   }
   // The PlayStation controller (input-playstation): offered with the capability, waiting for the title's update on an
   // older runtime, and Xbox controller (no new mode in the profile) until it counts. Rumble applies to it; the dead

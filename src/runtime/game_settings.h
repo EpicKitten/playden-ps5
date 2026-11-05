@@ -90,6 +90,10 @@ struct KitCapabilities {
   // controller. Counts only for a title that runs this kit's runtime, like display_120hz.
   bool input_playstation = false;
   bool input_playstation_needs_update = false;
+  // [input] keys = left_stick|right_stick|none: a stick holds W, A, S and D. Counts only for a title that runs this
+  // kit's runtime, like display_120hz.
+  bool input_stick_keys = false;
+  bool input_stick_keys_needs_update = false;
 };
 
 struct SettingChoice {
@@ -544,7 +548,7 @@ bool ParseCommunityRecipe(std::string_view json, CommunityRecipe* community, std
 // Whether the kit's runtime has every newer profile feature the sidecar declares in
 // requires.prospero_win: the kit capability names without "settings-" (profile-environment,
 // input-tuning, input-wheel, audio-volume; see prospero-win-profiles SIDECARS.md), and display-120hz, input-rumble,
-// display-framegen and input-playstation, which need the game's own title on such a runtime: pass the kit as KitForTitleRuntime gives it
+// display-framegen, input-playstation and input-stick-keys, which need the game's own title on such a runtime: pass the kit as KitForTitleRuntime gives it
 // for the game. Other entries (pull requests, versions) are not checked.
 bool CommunityPresetSupported(const CommunityPreset& community, const KitCapabilities& kit);
 
@@ -605,6 +609,9 @@ inline constexpr const char* kKitLauncherMode = "launcher-mode";
 // The title takes [input] mode = playstation: the game's Wine finds the DualSense as a wired DualShock 4 on its HID
 // bus, with the controller's own reports, and XInput reports no controller. Runtimes without it refuse the value.
 inline constexpr const char* kKitInputPlaystation = "input-playstation";
+// The title reads [input] keys = left_stick|right_stick|none: the stick holds W, A, S and D, a key down past half way
+// and up again under about a third. Runtimes without it refuse a profile with keys.
+inline constexpr const char* kKitInputStickKeys = "input-stick-keys";
 const std::vector<std::string>& SettingsKitCapabilityNames();
 
 // Settings gates from a verified kit's capabilities. bottle_access: the adapter can edit the
@@ -614,7 +621,8 @@ KitCapabilities KitCapabilitiesFromManifest(const std::vector<std::string>& capa
 // The installed kit's capabilities for one game's title. A prepared title keeps its own copy of the runtime until
 // Update, so a capability that adds profile keys counts only when the title runs this kit's runtime
 // (title_runtime_current: the title's owner markers name this kit, PackageInstaller::TitleCurrent). Otherwise
-// display_120hz, profile_version_2, input_rumble, display_framegen, display_fps_counter and input_playstation are off
+// display_120hz, profile_version_2, input_rumble, display_framegen, display_fps_counter, input_playstation and
+// input_stick_keys are off
 // and their _needs_update say why.
 KitCapabilities KitForTitleRuntime(KitCapabilities kit, bool title_runtime_current);
 

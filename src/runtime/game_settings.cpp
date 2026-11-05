@@ -179,6 +179,12 @@ std::vector<SettingDefinition> BuildCatalogue() {
                         {{"600", "600", ""}, {"900", "900", ""}, {"1200", "1200", ""}, {"1800", "1800", ""},
                          {"2400", "2400", ""}},
                         "1200"));
+  list.push_back(Choice("movement_stick", "Movement stick", "Hold W, A, S and D with a stick, as on a PC keyboard.",
+                        "[input] keys", G::kControllerTuning,
+                        {{"none", "None", ""},
+                         {"left_stick", "Left stick", "Up W, left A, down S, right D; a diagonal holds two."},
+                         {"right_stick", "Right stick", "Up W, left A, down S, right D; a diagonal holds two."}},
+                        "none"));
   list.push_back(Choice("stick_deadzone", "Stick dead zone",
                         "How far a stick moves before the game sees it. Raise it if the camera drifts.",
                         "[input] stick_deadzone", G::kControllerTuning,
@@ -537,6 +543,14 @@ std::string Unavailable(const SettingDefinition& definition, const std::string& 
   if ((id == "environment" || id == "pixel_shader_waves") && !kit.environment && !kit.opengl_zink)
     return "Needs a newer runtime kit that reads [environment].";
   if (id == "wheel_stick" && !kit.input_wheel) return "Needs a newer runtime kit that turns the mouse wheel.";
+  if (id == "movement_stick") {
+    // The keys go to the game as a keyboard's; with a controller mode the game would also read the stick itself.
+    const auto controller = values.find("controller");
+    if (controller == values.end() || controller->second.value != "keyboard")
+      return "Only with Keyboard and mouse mapping.";
+    if (kit.input_stick_keys_needs_update) return kAppliesAfterKitUpdate;
+    if (!kit.input_stick_keys) return "Needs a runtime kit that holds W, A, S and D from a stick.";
+  }
   if (id == "volume" && !kit.audio_volume) return "Needs a newer runtime kit with per-game volume.";
   // Rumble alone (input-rumble) or with the rest of controller tuning.
   if (id == "rumble" && !kit.input_tuning && !kit.input_rumble) {
@@ -1168,6 +1182,9 @@ bool RenderProsperoProfile(const GameRecipe& recipe, const EffectiveSettings& se
   };
   if (chosen("controller")) text += "mode = " + value("controller") + "\n";
   if (chosen("pointer_stick")) text += "mouse = " + value("pointer_stick") + "\n";
+  // Written only when a stick holds the keys: the runtime's default is none, and older runtimes refuse the key.
+  const bool stick_keys = settings.values.at("movement_stick").available && value("movement_stick") != "none";
+  if (stick_keys) text += "keys = " + value("movement_stick") + "\n";
   if (settings.values.at("pointer_speed").available && chosen("pointer_speed"))
     text += "mouse_speed = " + value("pointer_speed") + "\n";
   // Written only when they differ from the runtime's defaults (no dead zone, full rumble).
@@ -1304,6 +1321,7 @@ bool RenderProsperoProfile(const GameRecipe& recipe, const EffectiveSettings& se
   features.display_framegen = display_framegen;
   features.display_fps_counter = fps_counter;
   features.input_playstation = value("controller") == "playstation";
+  features.input_stick_keys = stick_keys;
   features.runtime_version = settings.profile_version == 2;
   features.launcher_section = launcher_section;
   if (!CheckProsperoProfile(text, &why, features)) return fail("generated profile is invalid: " + why);
@@ -3311,7 +3329,8 @@ namespace playden::runtime {
 const std::vector<std::string>& SettingsKitCapabilityNames() {
   // Sorted, as a kit manifest lists them.
   static const std::vector<std::string> names = {kKitDisplay120Hz, kKitDisplayFpsCounter, kKitDisplayFramegen,
-                                                 kKitInputPlaystation, kKitInputRumble, kKitLauncherMode,
+                                                 kKitInputPlaystation, kKitInputRumble, kKitInputStickKeys,
+                                                 kKitLauncherMode,
                                                  kKitAudioVolume, kKitDxvkConfig, kKitDxvkPresent,
                                                  kKitInputTuning, kKitInputWheel, kKitEnvironment};
   return names;
@@ -3346,6 +3365,7 @@ KitCapabilities KitCapabilitiesFromManifest(const std::vector<std::string>& capa
   kit.display_fps_counter = has(kKitDisplayFpsCounter);
   kit.launcher_mode = has(kKitLauncherMode);
   kit.input_playstation = has(kKitInputPlaystation);
+  kit.input_stick_keys = has(kKitInputStickKeys);
   kit.registry = bottle_access;
   return kit;
 }
@@ -3380,6 +3400,10 @@ KitCapabilities KitForTitleRuntime(KitCapabilities kit, bool title_runtime_curre
   if (!title_runtime_current && kit.input_playstation) {
     kit.input_playstation = false;
     kit.input_playstation_needs_update = true;
+  }
+  if (!title_runtime_current && kit.input_stick_keys) {
+    kit.input_stick_keys = false;
+    kit.input_stick_keys_needs_update = true;
   }
   return kit;
 }
@@ -3656,6 +3680,9 @@ bool CommunityPresetSupported(const CommunityPreset& community, const KitCapabil
     }
     else if (feature == "input-playstation") {
       if (!kit.input_playstation && !kit.input_playstation_needs_update) return false;
+    }
+    else if (feature == "input-stick-keys") {
+      if (!kit.input_stick_keys && !kit.input_stick_keys_needs_update) return false;
     }
     // Legacy PR references are informational sidecar provenance. Unknown feature
     // names or version requirements need verified support before a preset is shown.
