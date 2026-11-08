@@ -1569,6 +1569,21 @@ int main(int argc, char** argv) {
     CHECK(settings.graphics == "opengl" && settings.dll_overrides.empty());
     CHECK(settings.values.at("steam_features").value == "emulate" && !settings.values.at("graphics").locked);
   }
+  // FTL draws with OpenGL (Zink) and is played with the mouse, so its recipe picks the Mouse controller preset.
+  {
+    GameRecipe ftl;
+    CHECK(ParseGameRecipe(ReadText(source / "runtime/recipes/steam-212680-ftl-v1.json"), &ftl, &reason));
+    CHECK(ftl.app_id == 212680 && ftl.launch_entries.size() == 1 && ftl.launch_entries[0].executable == "FTLGame.exe");
+    EffectiveSettings settings;
+    SettingsError error;
+    CHECK(BuildEffectiveSettings(ftl, nullptr, {}, KitCapabilities{}, &settings, &error));
+    CHECK(settings.graphics == "opengl" && settings.dll_overrides.empty() && settings.architecture == "pe32");
+    CHECK(settings.values.at("controller_preset").value == "mouse" && !settings.values.at("controller_preset").locked);
+    CHECK(settings.arguments.empty() && !settings.values.at("graphics").locked);
+    // The player can still choose another preset.
+    CHECK(BuildEffectiveSettings(ftl, nullptr, {{"controller_preset", "gamepad"}}, KitCapabilities{}, &settings, &error));
+    CHECK(settings.values.at("controller_preset").value == "gamepad");
+  }
   // Batman: Arkham Asylum starts BmLauncher.exe, which can't start the game on the console, while UserEngine.ini has
   // no [Engine.Engine] Language, so its recipe writes Language=int (English). Otherwise it is what Playden made from
   // the game's files: DXVK for its Direct3D 9 and the Steam emulator.
@@ -1713,8 +1728,8 @@ int main(int argc, char** argv) {
   std::vector<SettingsPreset> loaded_presets;
   std::vector<GameRecipe> loaded_recipes;
   CHECK(LoadSettingsData((source / "runtime").string(), &loaded_presets, &loaded_recipes, &reason));
-  CHECK(loaded_presets.size() == 4 && loaded_recipes.size() == 8 && loaded_recipes.front().app_id == 220 &&
-        loaded_recipes.back().id == "steam-1903340-expedition33-v1");
+  CHECK(loaded_presets.size() == 4 && loaded_recipes.size() == 9 && loaded_recipes.front().app_id == 220 &&
+        loaded_recipes.back().id == "steam-212680-ftl-v1");
   CHECK(!LoadSettingsData((source / "missing").string(), &loaded_presets, &loaded_recipes, &reason));
 
   // ApplyGameSettings writes the profile and a Playden dxvk.conf, removes it when nothing is

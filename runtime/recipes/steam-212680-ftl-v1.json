@@ -1,0 +1,20 @@
+{
+  "recipe_id": "steam-212680-ftl-v1",
+  "recipe_version": 1,
+  "app_id": 212680,
+  "name": "FTL: Faster Than Light",
+  "launch_entries": [
+    {"id": "game", "label": "FTL: Faster Than Light", "executable": "FTLGame.exe"}
+  ],
+  "arguments": "",
+  "resolution_arguments": "",
+  "dll_overrides": "",
+  "architecture": "pe32",
+  "runtime": "wine-wow64",
+  "prefix": "game",
+  "graphics": "opengl",
+  "defaults": {
+    "controller_preset": "mouse"
+  },
+  "locked": []
+}
